@@ -2,29 +2,33 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/redis/go-redis/v9"
-	"injector/bot"
-	"strconv"
+	"net/http"
 	"time"
 )
 
 type Stream struct {
-	Device     string
-	redis      *redis.Client
-	injector   *bot.Injector
-	consumeCh  chan *StreamItem
-	SampleID   string
-	Home       uint16
-	RunConsume bool
-	Interval   time.Duration `yaml:"interval_ms,omitempty"`
+	SampleID  string        `yaml:"sample_id,omitempty"`
+	Interval  time.Duration `yaml:"interval_ms"`
+	Port      string        `yaml:"port"`
+	Addr      string        `yaml:"addr"`
+	Password  string        `yaml:"password,omitempty"`
+	DB        int           `yaml:"db,omitempty"`
+	Requests  []string      `yaml:"requests"`
+	Device    string
+	redis     *redis.Client
+	consumeCh chan map[string]interface{}
+	keepAlive bool
 }
 
 func (s *Stream) Open(ctx context.Context) error {
 	s.redis = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "",
-		DB:       0,
+		Addr:     s.Addr,
+		Password: s.Password,
+		DB:       s.DB,
 	})
 	res, err := s.redis.Ping(ctx).Result()
 	if err != nil {
@@ -40,43 +44,33 @@ func (s *Stream) Close() {
 	_ = s.redis.Close()
 }
 
-type StreamItem struct {
-	Id    string
-	Force float32
-	Depth uint16
-}
-
-func (s *StreamItem) Dict() map[string]interface{} {
-	return map[string]interface{}{
-		"id":       s.Id,
-		"force_mN": s.Force,
-		"depth_um": s.Depth,
-	}
-}
-
 func (s *Stream) doRequests(ctx context.Context) (*redis.XAddArgs, error) {
-	d := &StreamItem{Id: s.SampleID}
-	for {
+	data := map[string]interface{}{
+		"id": s.SampleID,
+	}
+	for _, r := range s.Requests {
 		select {
 		case <-ctx.Done():
 			return nil, errors.New("timeout")
 		default:
-			var err error
-			d.Depth, err = s.injector.Needle.Client.GetCurrentPos()
+			url := fmt.Sprintf("http://localhost:%v/%v", s.Port, r)
+			resp, err := http.Get(url)
+			var res map[string]interface{}
+			d := json.NewDecoder(resp.Body)
+			err = d.Decode(&res)
 			if err != nil {
 				panic(err)
 			}
-			d.Depth -= s.Home
-			d.Force = s.injector.Pump.Read()
-			return s.Format(d), nil
+			data[r] = res["result"]
 		}
 	}
+	return s.Format(data), nil
 }
 
-func (s *Stream) Format(i *StreamItem) *redis.XAddArgs {
+func (s *Stream) Format(d map[string]interface{}) *redis.XAddArgs {
 	return &redis.XAddArgs{
 		Stream: s.ID(),
-		Values: i.Dict(),
+		Values: d,
 	}
 }
 
@@ -105,9 +99,9 @@ func (s *Stream) ID() string {
 }
 
 func (s *Stream) Consume(ctx context.Context) bool {
-	if !s.RunConsume {
-		s.consumeCh = make(chan *StreamItem)
-		s.RunConsume = true
+	if !s.keepAlive {
+		s.consumeCh = make(chan map[string]interface{})
+		s.keepAlive = true
 		args := &redis.XReadArgs{
 			Block:   time.Duration(1000) * time.Millisecond,
 			Streams: []string{s.ID(), "$"},
@@ -115,42 +109,29 @@ func (s *Stream) Consume(ctx context.Context) bool {
 		go func() {
 			defer func() {
 				close(s.consumeCh)
-				s.RunConsume = false
+				s.keepAlive = false
 			}()
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				default:
-					res, err := s.redis.XRead(ctx, args).
-						Result()
+					res, err := s.redis.XRead(ctx, args).Result()
 					if err != nil {
 						if err == context.Canceled || err == redis.ErrClosed {
 							return
 						}
 						panic(err)
 					}
-					v := res[0].Messages[0].Values
-					force := v["force_mN"].(string)
-					depth := v["depth_um"].(string)
-					forceFloat, err := strconv.ParseFloat(force, 32)
-					depthInt, err := strconv.Atoi(depth)
-					if err != nil {
-						panic(err)
-					}
-					s.consumeCh <- &StreamItem{
-						Id:    v["id"].(string),
-						Force: float32(forceFloat),
-						Depth: uint16(depthInt),
-					}
+					s.consumeCh <- res[0].Messages[0].Values
 				}
 			}
 		}()
 	}
-	return s.RunConsume
+	return s.keepAlive
 }
 
-func (s *Stream) Recv(ctx context.Context) *StreamItem {
+func (s *Stream) Recv(ctx context.Context) map[string]interface{} {
 	for {
 		select {
 		case <-ctx.Done():
@@ -161,19 +142,15 @@ func (s *Stream) Recv(ctx context.Context) *StreamItem {
 	}
 }
 
-func NewRedisStream(device, id string, home uint16,
-	interval time.Duration,
-	injector *bot.Injector) *Stream {
+func NewRedisStream(device, id string, interval time.Duration) *Stream {
 	return &Stream{
-		Device:     device,
-		injector:   injector,
-		SampleID:   id,
-		Home:       home,
-		Interval:   interval,
-		RunConsume: false,
+		Device:    device,
+		SampleID:  id,
+		Interval:  interval,
+		keepAlive: false,
 	}
 }
 
 type Handler interface {
-	Handle(ctx context.Context, data *StreamItem)
+	Handle(ctx context.Context, data map[string]interface{})
 }
