@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"github.com/iancoleman/strcase"
 	"github.com/jt05610/loppu"
+	"github.com/jt05610/loppu/hardware"
 	"github.com/jt05610/loppu/yaml"
+	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"os/user"
 	"time"
 )
 
@@ -36,13 +36,20 @@ type MetaData struct {
 }
 
 type MBusNode struct {
-	*MetaData   `yaml:"meta"`
+	MetaData    *MetaData             `yaml:"meta"`
 	Tables      map[string][]*Handler `yaml:"tables"`
 	Diag        []*Handler            `yaml:"diag,omitempty"`
 	client      *Client
 	rfLookup    map[string]map[string]func(uint16, uint16) *MBusPDU
 	addrLookup  map[string]uint16
 	paramLookup map[string]string
+}
+
+func (n *MBusNode) Proto(p ...hardware.Proto) hardware.Proto {
+	if p != nil {
+		n.client = p[0].(*Client)
+	}
+	return n.client
 }
 
 func (n *MBusNode) Meta() loppu.MetaData {
@@ -67,7 +74,7 @@ func (n *MBusNode) Endpoints(baseURL string) []*loppu.Endpoint {
 	n.paramLookup = make(map[string]string)
 	for name, handlers := range n.Tables {
 		for _, h := range handlers {
-			route, err := url.JoinPath(baseURL, n.Node, h.Name)
+			route, err := url.JoinPath(baseURL, n.MetaData.Node, h.Name)
 			if err != nil {
 				panic(err)
 			}
@@ -115,7 +122,7 @@ func (n *MBusNode) handlers() map[string]http.HandlerFunc {
 	n.addrLookup = make(map[string]uint16)
 	for name, handlers := range n.Tables {
 		for i, h := range handlers {
-			endpoint := fmt.Sprintf("/%s/%s", n.Node, h.Name)
+			endpoint := fmt.Sprintf("/%s/%s", n.MetaData.Node, h.Name)
 			if reqFunc, ok := lookup[http.MethodGet][name]; ok {
 				n.rfLookup[http.MethodGet][endpoint] = reqFunc
 				n.addrLookup[endpoint] = uint16(i)
@@ -137,7 +144,8 @@ func (n *MBusNode) handlers() map[string]http.HandlerFunc {
 						var bytes []byte
 						if r.Method == http.MethodGet {
 							pack, err := n.client.Request(r.Context(),
-								n.Address, reqFunc(n.addrLookup[r.RequestURI], 1))
+								n.MetaData.Address, reqFunc(n.addrLookup[r.
+									RequestURI], 1))
 							pdu := pack.(*MBusPDU)
 							if err != nil || res == nil {
 								http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -201,7 +209,7 @@ func (n *MBusNode) handlers() map[string]http.HandlerFunc {
 							}
 
 							pack, err := n.client.Request(r.Context(),
-								n.Address, reqPDU)
+								n.MetaData.Address, reqPDU)
 							if err != nil {
 								http.Error(w, "server error", http.StatusInternalServerError)
 								return
@@ -232,7 +240,7 @@ func (n *MBusNode) Register(srv *http.ServeMux) {
 	}
 	for _, handler := range n.Diag {
 		if handler.Name == "echo" {
-			endpoint := fmt.Sprintf("/%s/%s", n.Node, "echo")
+			endpoint := fmt.Sprintf("/%s/%s", n.MetaData.Node, "echo")
 			srv.HandleFunc(endpoint, func(w http.ResponseWriter, r *http.Request) {
 				dec := json.NewDecoder(r.Body)
 				body := make(map[string][]byte)
@@ -241,7 +249,8 @@ func (n *MBusNode) Register(srv *http.ServeMux) {
 					http.Error(w, "bad request", http.StatusBadRequest)
 				}
 				req := Echo(body["message"]...)
-				pack, err := n.client.Request(r.Context(), n.Address, req)
+				pack, err := n.client.Request(r.Context(),
+					n.MetaData.Address, req)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
@@ -263,54 +272,24 @@ func (n *MBusNode) Register(srv *http.ServeMux) {
 	}
 }
 
-func LoadMBusNode(file string) loppu.Node {
-	l := yaml.NewYAMLLoadFlusher[MBusNode]()
-	df, err := os.Open(file)
-	if err != nil {
-		panic(err)
-	}
-	node, err := l.Load(df)
-	return node
-}
-
-func FlushMBusNode(file string, create bool,
-	overwrite bool, data loppu.Node) error {
-	l := yaml.NewYAMLLoadFlusher[MBusNode]()
-	perm := 0
-	if create {
-		perm |= os.O_CREATE
-	}
-	if overwrite {
-		perm |= os.O_WRONLY
-	}
-	df, err := os.OpenFile(file, perm, os.ModePerm)
-	defer df.Close()
-	if err != nil {
-		if os.IsNotExist(err) && create {
-			df, err = os.Create(file)
-			if err != nil {
-				panic(err)
-			}
-		} else if os.IsExist(err) && overwrite {
-			// do nothing
-		} else {
-			panic(err)
-		}
-	}
-	err = l.Flush(df, data.(*MBusNode))
+func (n *MBusNode) Load(r io.Reader) error {
+	l := yaml.NodeService[MBusNode]{}
+	v, err := l.Load(r)
+	n.MetaData = v.MetaData
+	n.Tables = v.Tables
 	return err
 }
 
-func NewMBusNode(name string, address byte) loppu.Node {
-	uName := ""
-	u, err := user.Current()
-	if err == nil {
-		uName = u.Name
-	}
+func (n *MBusNode) Flush(w io.Writer) error {
+	l := yaml.NodeService[MBusNode]{}
+	return l.Flush(w, n)
+}
+
+func NewMBusNode(name string, address byte) hardware.Node {
 	return &MBusNode{
 		MetaData: &MetaData{
 			Node:    name,
-			Author:  uName,
+			Author:  loppu.Username(),
 			Address: MBAddress(address),
 			Date:    time.Now().String(),
 		},
