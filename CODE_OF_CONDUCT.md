@@ -1,4 +1,4 @@
-Code of Conduct
+# Code of Conduct
 
 As contributors and maintainers of this open source robotics project, we pledge
 to respect all people who contribute through reporting issues, submitting

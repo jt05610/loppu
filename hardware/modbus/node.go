@@ -29,10 +29,10 @@ type Handler struct {
 }
 
 type MetaData struct {
-	Node    string
-	Author  string
-	Address MBAddress
-	Date    string
+	Node    string    `yaml:"node"`
+	Author  string    `yaml:"author"`
+	Address MBAddress `yaml:"address"`
+	Date    string    `yaml:"date"`
 }
 
 type MBusNode struct {
