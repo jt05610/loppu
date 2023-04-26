@@ -5,14 +5,36 @@ import (
 	"net/http"
 )
 
+type Addr interface {
+	String() string
+	Bytes() []byte
+	Byte() byte
+}
+
+type MetaData struct {
+	Node    string
+	Author  string
+	Address Addr
+	Date    string
+}
+
 type Node interface {
+	Meta() *MetaData
 	Register(srv *http.ServeMux)
 	Endpoints(base string) []*Endpoint
 }
 
-type NodeService interface {
-	Load(r io.Reader) (Node, error)
-	Flush(w io.Writer, node Node) error
+type Loader[T any] interface {
+	Load(r io.Reader) (*T, error)
+}
+
+type Flusher[T any] interface {
+	Flush(w io.Writer, t *T) error
+}
+
+type LoadFlusher[T any] interface {
+	Loader[T]
+	Flusher[T]
 }
 
 type EndpointParam struct {

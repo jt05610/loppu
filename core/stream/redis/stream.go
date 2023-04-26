@@ -5,23 +5,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jt05610/loppu"
 	"github.com/redis/go-redis/v9"
 	"net/http"
 	"time"
 )
 
 type Stream struct {
-	SampleID  string        `yaml:"sample_id,omitempty"`
-	Interval  time.Duration `yaml:"interval_ms"`
-	Port      string        `yaml:"port"`
-	Addr      string        `yaml:"addr"`
-	Password  string        `yaml:"password,omitempty"`
-	DB        int           `yaml:"db,omitempty"`
-	Requests  []string      `yaml:"requests"`
+	MetaData  *loppu.MetaData `yaml:"meta"`
+	SampleID  string          `yaml:"sample_id,omitempty"`
+	Interval  time.Duration   `yaml:"interval_ms"`
+	Port      string          `yaml:"port"`
+	Addr      string          `yaml:"addr"`
+	Password  string          `yaml:"password,omitempty"`
+	DB        int             `yaml:"db,omitempty"`
+	Requests  []string        `yaml:"requests"`
 	Device    string
 	redis     *redis.Client
 	consumeCh chan map[string]interface{}
 	keepAlive bool
+}
+
+func (s *Stream) Meta() *loppu.MetaData {
+	return s.MetaData
 }
 
 func (s *Stream) Open(ctx context.Context) error {
@@ -142,12 +148,24 @@ func (s *Stream) Recv(ctx context.Context) map[string]interface{} {
 	}
 }
 
-func NewRedisStream(device, id string, interval time.Duration) *Stream {
+func (s *Stream) Register(srv *http.ServeMux) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Stream) Endpoints(base string) []*loppu.Endpoint {
+	//TODO implement me
+	panic("implement me")
+}
+
+func NewRedisStream(device, id string, interval time.Duration,
+	requests []string) loppu.Node {
 	return &Stream{
 		Device:    device,
 		SampleID:  id,
 		Interval:  interval,
 		keepAlive: false,
+		Requests:  requests,
 	}
 }
 
