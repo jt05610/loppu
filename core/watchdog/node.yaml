@@ -1,0 +1,21 @@
+meta:
+  node: watchdog
+  author: Jonathan Taylor
+  date: 25 Apr 2023
+
+# Which streamed data point are we watching?
+watch:
+  force_pump/force
+
+# What force reading are we looking for?
+limit: 40
+
+# How many readings above the limit should we see in a row before taking action?
+n_limit: 5
+
+# What do we do when the threshold is crosses?
+react:
+  - needle_mover/start
+
+# Should we reload the watchdog everytime it fires or just run it once?
+one_shot: true

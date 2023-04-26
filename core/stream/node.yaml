@@ -1,0 +1,15 @@
+meta:
+  node: stream
+  author: Jonathan Taylor
+  date: 25 Apr 2023
+
+interval: 100
+
+data:
+  force_pump:
+    - force
+    - current_pos
+
+  needle_mover:
+    current_pos
+
