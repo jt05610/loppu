@@ -28,7 +28,7 @@ simply different from the needs of one in traditional robotics settings.
 The framework can be installed using `go get`:
 
 ```zsh
-go get github.com/<username>/<repo>
+go get github.com/jt05610/loppu
 ```
 
 ## Usage
