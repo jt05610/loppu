@@ -11,15 +11,11 @@ type Addr interface {
 	Byte() byte
 }
 
-type MetaData struct {
-	Node    string
-	Author  string
-	Address Addr
-	Date    string
+type MetaData interface {
 }
 
 type Node interface {
-	Meta() *MetaData
+	Meta() MetaData
 	Register(srv *http.ServeMux)
 	Endpoints(base string) []*Endpoint
 }

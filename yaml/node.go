@@ -27,6 +27,6 @@ func (s *NodeService[T]) Flush(w io.Writer, t *T) error {
 	return err
 }
 
-func NewYAMLLoader[T any]() loppu.LoadFlusher[T] {
+func NewYAMLLoadFlusher[T any]() loppu.LoadFlusher[T] {
 	return &NodeService[T]{}
 }
