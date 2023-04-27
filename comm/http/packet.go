@@ -42,7 +42,7 @@ func (p *Packet) JSON() io.Reader {
 	var buf bytes.Buffer
 	d := json.NewDecoder(&buf)
 	err := d.Decode(&p.Content)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		panic(err)
 	}
 	return &buf
@@ -57,17 +57,19 @@ func (p *PacketService) Load(r io.Reader) (comm.Packet, error) {
 	res := &Packet{}
 	d := json.NewDecoder(r)
 	err := d.Decode(&res.Content)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		res.Err = err
 	}
 	return res, err
 }
 
+// Flush writes the Packet to the given io.Writer.
 func (p *PacketService) Flush(w io.Writer, pack comm.Packet) error {
 	e := json.NewEncoder(w)
 	return e.Encode(pack.Body)
 }
 
+// NewPacketService creates a new packet service.
 func NewPacketService() comm.PacketService {
 	return &PacketService{}
 }

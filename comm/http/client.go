@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jt05610/loppu/comm"
+	"io"
 	"net/http"
 )
 
@@ -39,7 +40,15 @@ func (c *Client) RoundTrip(a comm.Addr, p comm.Packet) (comm.Packet, error) {
 	if err == nil && resp.StatusCode > 400 {
 		err = errors.New(fmt.Sprintf("write failed with status code %v", resp.StatusCode))
 	}
-	return c.ps.Load(resp.Body)
+	r, err := c.ps.Load(resp.Body)
+	if err != nil {
+		if err == io.EOF {
+			err = nil
+		} else {
+			panic(err)
+		}
+	}
+	return r, err
 }
 
 func (c *Client) Close() {
