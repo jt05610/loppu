@@ -99,6 +99,12 @@ func (s *Streamer) Stream(ctx context.Context) {
 
 }
 
+var DefaultRedis = &redis.Options{
+	Addr:     "localhost:6379",
+	Password: "",
+	DB:       0,
+}
+
 func (s *Streamer) Add(new *Stream) error {
 	if s.Streams == nil {
 		s.Streams = make([]*Stream, 0)
@@ -108,5 +114,5 @@ func (s *Streamer) Add(new *Stream) error {
 }
 
 func NewStreamer(c comm.Client) comm.Streamer {
-	return &Streamer{reqClient: c}
+	return &Streamer{reqClient: c, client: redis.NewClient(DefaultRedis)}
 }

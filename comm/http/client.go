@@ -14,9 +14,9 @@ type Client struct {
 	ps     comm.PacketService
 }
 
-// Read from the given comm.Addr.
-func (c *Client) Read(a comm.Addr) (comm.Packet, error) {
-	resp, err := c.client.Get(a.String())
+// Read from the given address.
+func (c *Client) Read(a string) (comm.Packet, error) {
+	resp, err := c.client.Get(a)
 	if err != nil {
 		return nil, err
 	}
@@ -24,9 +24,9 @@ func (c *Client) Read(a comm.Addr) (comm.Packet, error) {
 }
 
 // Write the given comm.Packet to the given comm.Addr. Makes sure status code is not an error, otherwise ignores the response.
-func (c *Client) Write(a comm.Addr, p comm.Packet) error {
+func (c *Client) Write(a string, p comm.Packet) error {
 	var err error
-	resp, err := c.client.Post(a.String(), "application/json", p.JSON())
+	resp, err := c.client.Post(a, "application/json", p.JSON())
 	if err == nil && resp.StatusCode > 400 {
 		err = errors.New(fmt.Sprintf("write failed with status code %v", resp.StatusCode))
 	}

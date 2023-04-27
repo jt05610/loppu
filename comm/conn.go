@@ -1,5 +1,9 @@
 package comm
 
+import (
+	"context"
+)
+
 type Role string
 
 const (
@@ -11,12 +15,21 @@ const (
 )
 
 type Client interface {
-	Read(a Addr) (Packet, error)
-	Write(a Addr, p Packet) error
+	Read(addr string) (Packet, error)
+	Write(addr string, p Packet) error
 	RoundTrip(a Addr, p Packet) (Packet, error)
 	Close()
 }
 
 type Server interface {
 	Listen() error
+}
+
+type Consumer interface {
+	Consume(ctx context.Context) bool
+	Recv() <-chan map[string]interface{}
+}
+
+type Streamer interface {
+	Stream(ctx context.Context)
 }
