@@ -37,6 +37,9 @@ func (s *Stream) doRequests(ctx context.Context) (*redis.XAddArgs, error) {
 			return nil, errors.New("timeout")
 		default:
 			resp, err := http.Get(r.Uri)
+			if err != nil {
+				return nil, err
+			}
 			var res map[string]interface{}
 			d := json.NewDecoder(resp.Body)
 			err = d.Decode(&res)
