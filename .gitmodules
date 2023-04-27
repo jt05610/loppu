@@ -1,3 +1,9 @@
 [submodule "core"]
 	path = core
 	url = https://github.com/jt05610/loppu-core
+[submodule "scaffold"]
+	path = scaffold
+	url = https://github.com/jt05610/scaffold
+[submodule "firmware"]
+	path = firmware
+	url = https://github.com/jt05610/loppu-firmware
