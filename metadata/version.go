@@ -1,4 +1,4 @@
-package loppu
+package metadata
 
 import (
 	"strconv"

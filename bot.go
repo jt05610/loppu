@@ -2,16 +2,17 @@ package loppu
 
 import (
 	"errors"
+	"github.com/jt05610/loppu/metadata"
 	"net/http"
 )
 
 type Bot struct {
-	MetaData *MetaData           `yaml:"meta"`
+	MetaData *metadata.MetaData  `yaml:"metadata"`
 	Nodes    map[string][]string `yaml:"nodes,omitempty"`
 	nodes    []Node
 }
 
-func (b *Bot) Meta() *MetaData {
+func (b *Bot) Meta() *metadata.MetaData {
 	//TODO implement me
 	panic("implement me")
 }
@@ -30,7 +31,7 @@ const DefaultName string = "newBot"
 
 func NewProject(name string, host string) Node {
 	return &Bot{
-		MetaData: NewMetaData(name, host, 0),
+		MetaData: metadata.NewMetaData(name, host, 0),
 		Nodes:    make(map[string][]string, 0),
 	}
 }
