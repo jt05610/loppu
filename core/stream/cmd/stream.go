@@ -7,7 +7,6 @@ package cmd
 import (
 	"fmt"
 	"github.com/jt05610/loppu/core/stream/redis"
-	"github.com/sevlyar/go-daemon"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
@@ -21,27 +20,9 @@ var startCmd = &cobra.Command{
 	Short: "start the stream",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		dCtx := &daemon.Context{
-			PidFileName: "stream.pid",
-			PidFilePerm: 0644,
-			LogFileName: "stream.log",
-			LogFilePerm: 0640,
-			WorkDir:     "./",
-			Args:        []string{"[stream start]"},
-			Umask:       027,
-		}
-		d, err := dCtx.Reborn()
-		if err != nil {
-			log.Fatal(err)
-		}
-		if d != nil {
-			return
-		}
-		defer func(ctx *daemon.Context) {
-			_ = ctx.Release()
-		}(dCtx)
 		s := redis.Node{}
-		df, err := os.Open("./node.yaml")
+		dest := path.Join("nodes", "stream", "node.yaml")
+		df, err := os.OpenFile(dest, os.O_RDONLY, os.ModePerm)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -77,7 +58,7 @@ var initCmd = &cobra.Command{
 	Long:  `use to initialize`,
 	Run: func(cmd *cobra.Command, args []string) {
 		s := redis.NewRedisNode()
-		dest := path.Join("stream", "node.yaml")
+		dest := path.Join("nodes", "stream", "node.yaml")
 		df, err := os.Create(dest)
 		defer df.Close()
 		if err != nil {
@@ -102,7 +83,7 @@ var (
 		Long:  `adds stream to node.yaml`,
 		Run: func(cmd *cobra.Command, args []string) {
 			s := redis.NewRedisNode()
-			dest := path.Join("stream", "node.yaml")
+			dest := path.Join("nodes", "stream", "node.yaml")
 			df, err := os.OpenFile(dest, os.O_RDONLY, os.ModePerm)
 			if err != nil {
 				panic(err)
@@ -111,7 +92,7 @@ var (
 			if err != nil {
 				panic(err)
 			}
-			df.Close()
+			_ = df.Close()
 			df, err = os.OpenFile(dest, os.O_WRONLY, os.ModePerm)
 			if err != nil {
 				panic(err)
