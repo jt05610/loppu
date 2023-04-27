@@ -3,11 +3,10 @@ package comm
 import "io"
 
 type Packet interface {
-	io.ReadWriter
-	Addr() Addr
-	Header() []byte
-	Data() []byte
-	CRC16() uint16
+	Header(h ...map[string][]string) io.Reader
+	JSON() io.Reader
+	Body() map[string]interface{}
+	Error() error
 }
 
 type PacketService interface {
