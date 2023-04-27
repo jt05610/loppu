@@ -1,4 +1,4 @@
-# Loppu: the scalable scientific robotics framework for getting research done
+# Loppu: the scalable framework for getting research done
 
 Loppu is an open source laboratory robotics framework designed to simplify
 the development and deployment of autonomous laboratory systems. Loppu
