@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"syscall"
 	"time"
 )
 
@@ -33,6 +34,8 @@ type MetaData struct {
 	Author  string    `yaml:"author"`
 	Address MBAddress `yaml:"address"`
 	Date    string    `yaml:"date"`
+	Port    int       `yaml:"port"`
+	Host    string    `yaml:"host"`
 }
 
 type MBusNode struct {
@@ -43,6 +46,30 @@ type MBusNode struct {
 	rfLookup    map[string]map[string]func(uint16, uint16) *MBusPDU
 	addrLookup  map[string]uint16
 	paramLookup map[string]string
+}
+
+func (n *MBusNode) Addr() string {
+	return n.MetaData.Host
+}
+
+func (n *MBusNode) Port() int {
+	return n.MetaData.Port
+}
+
+func (n *MBusNode) Start() error {
+	mux := http.NewServeMux()
+	n.Register(mux)
+	srv := &http.Server{
+		Addr:              fmt.Sprintf("%s:%v", n.Addr(), n.Port()),
+		Handler:           mux,
+		IdleTimeout:       5 * time.Minute,
+		ReadHeaderTimeout: time.Second,
+	}
+	return srv.ListenAndServe()
+}
+
+func (n *MBusNode) Stop() error {
+	return syscall.Exec("kill", []string{"modbus.pid"}, nil)
 }
 
 func (n *MBusNode) Proto(p ...hardware.Proto) hardware.Proto {
@@ -292,6 +319,8 @@ func NewMBusNode(name string, address byte) hardware.Node {
 			Author:  loppu.Username(),
 			Address: MBAddress(address),
 			Date:    time.Now().String(),
+			Host:    "127.0.0.1",
+			Port:    50000,
 		},
 		Tables: map[string][]*Handler{
 			"discrete_inputs": {

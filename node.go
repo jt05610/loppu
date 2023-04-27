@@ -17,6 +17,10 @@ type MetaData interface {
 type Node interface {
 	Load(r io.Reader) error
 	Flush(w io.Writer) error
+	Addr() string
+	Port() int
+	Start() error
+	Stop() error
 	Meta() MetaData
 	Register(srv *http.ServeMux)
 	Endpoints(base string) []*Endpoint

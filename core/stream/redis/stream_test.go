@@ -33,7 +33,7 @@ func TestSim_Run(t *testing.T) {
 			default:
 				item := s.Stream.Recv(ctx)
 				if item != nil {
-					fmt.Printf("%v\n", item.Dict())
+					fmt.Printf("%v\n", item)
 				}
 			}
 		}

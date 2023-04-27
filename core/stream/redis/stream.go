@@ -4,35 +4,133 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/jt05610/loppu"
+	"github.com/jt05610/loppu/yaml"
 	"github.com/redis/go-redis/v9"
+	"io"
+	"log"
 	"net/http"
+	"sync"
+	"syscall"
 	"time"
 )
 
+type Request struct {
+	Name string `yaml:"name"`
+	Uri  string `yaml:"uri"`
+}
+
 type Stream struct {
-	MetaData  *loppu.MetaData `yaml:"meta"`
-	SampleID  string          `yaml:"sample_id,omitempty"`
-	Interval  time.Duration   `yaml:"interval_ms"`
-	Port      string          `yaml:"port"`
-	Addr      string          `yaml:"addr"`
-	Password  string          `yaml:"password,omitempty"`
-	DB        int             `yaml:"db,omitempty"`
-	Requests  []string        `yaml:"requests"`
-	Device    string
+	Name     string `yaml:"name"`
+	ID       string
+	Requests []*Request    `yaml:"requests"`
+	Interval time.Duration `yaml:"interval"`
+}
+
+func (s *Stream) doRequests(ctx context.Context) (*redis.XAddArgs, error) {
+	data := map[string]interface{}{
+		"id": s.ID,
+	}
+	for _, r := range s.Requests {
+		select {
+		case <-ctx.Done():
+			return nil, errors.New("timeout")
+		default:
+			resp, err := http.Get(r.Uri)
+			var res map[string]interface{}
+			d := json.NewDecoder(resp.Body)
+			err = d.Decode(&res)
+			if err != nil {
+				panic(err)
+			}
+			data[r.Name] = res["result"]
+		}
+	}
+	return &redis.XAddArgs{
+		Stream: s.Name,
+		Values: data,
+	}, nil
+}
+
+func (s *Stream) Stream(ctx context.Context, out chan *redis.XAddArgs) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(s.Interval):
+			args, err := s.doRequests(ctx)
+			if err != nil {
+				return err
+			}
+			out <- args
+		}
+	}
+}
+
+type MetaData struct {
+	Node   string `yaml:"node"`
+	Author string `yaml:"author"`
+	Date   string `yaml:"date"`
+	Host   string `yaml:"host"`
+	Port   int    `yaml:"port"`
+}
+
+type Node struct {
+	MetaData  *MetaData `yaml:"meta"`
+	RedisAddr string    `yaml:"redis"`
+	Password  string    `yaml:"password,omitempty"`
+	DB        int       `yaml:"db,omitempty"`
+	Streams   []*Stream `yaml:"streams"`
 	redis     *redis.Client
 	consumeCh chan map[string]interface{}
 	keepAlive bool
 }
 
-func (s *Stream) Meta() *loppu.MetaData {
+func (s *Node) Addr() string {
+	return s.MetaData.Host
+}
+
+func (s *Node) Port() int {
+	return s.MetaData.Port
+}
+
+func (s *Node) Start() error {
+	ctx := context.Background()
+	s.Stream(ctx)
+	return nil
+}
+
+func (s *Node) Stop() error {
+	return syscall.Exec("kill", []string{"stream.pid"}, nil)
+}
+
+func (s *Node) Load(r io.Reader) error {
+	l := yaml.NodeService[Node]{}
+	v, err := l.Load(r)
+	s.MetaData = v.MetaData
+	s.DB = v.DB
+	s.RedisAddr = v.RedisAddr
+	s.Password = v.Password
+	if v.Streams == nil {
+		v.Streams = make([]*Stream, 0)
+	}
+	s.Streams = v.Streams
+	return err
+}
+
+func (s *Node) Flush(w io.Writer) error {
+	l := yaml.NodeService[Node]{}
+	return l.Flush(w, s)
+
+}
+
+func (s *Node) Meta() loppu.MetaData {
 	return s.MetaData
 }
 
-func (s *Stream) Open(ctx context.Context) error {
+func (s *Node) Open(ctx context.Context) error {
 	s.redis = redis.NewClient(&redis.Options{
-		Addr:     s.Addr,
+		Addr:     s.RedisAddr,
 		Password: s.Password,
 		DB:       s.DB,
 	})
@@ -46,71 +144,56 @@ func (s *Stream) Open(ctx context.Context) error {
 	return nil
 }
 
-func (s *Stream) Close() {
+func (s *Node) Close() {
 	_ = s.redis.Close()
 }
 
-func (s *Stream) doRequests(ctx context.Context) (*redis.XAddArgs, error) {
-	data := map[string]interface{}{
-		"id": s.SampleID,
-	}
-	for _, r := range s.Requests {
-		select {
-		case <-ctx.Done():
-			return nil, errors.New("timeout")
-		default:
-			url := fmt.Sprintf("http://localhost:%v/%v", s.Port, r)
-			resp, err := http.Get(url)
-			var res map[string]interface{}
-			d := json.NewDecoder(resp.Body)
-			err = d.Decode(&res)
-			if err != nil {
-				panic(err)
-			}
-			data[r] = res["result"]
-		}
-	}
-	return s.Format(data), nil
-}
-
-func (s *Stream) Format(d map[string]interface{}) *redis.XAddArgs {
-	return &redis.XAddArgs{
-		Stream: s.ID(),
-		Values: d,
-	}
-}
-
-func (s *Stream) Stream(ctx context.Context) error {
+func (s *Node) Stream(ctx context.Context) {
+	var wg sync.WaitGroup
+	ch := make(chan *redis.XAddArgs)
+	defer close(ch)
 	err := s.Open(ctx)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer s.Close()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(s.Interval):
-			args, err := s.doRequests(ctx)
-			if err != nil {
-				return err
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-ch:
+				s.redis.XAdd(ctx, msg)
 			}
-			s.redis.XAdd(ctx, args)
 		}
+	}()
+	for _, s := range s.Streams {
+		wg.Add(1)
+		go func(s *Stream) {
+			defer wg.Done()
+			e := s.Stream(ctx, ch)
+			if e != nil {
+				log.Fatal(e)
+			}
+		}(s)
 	}
+	wg.Wait()
 }
 
-func (s *Stream) ID() string {
-	return s.Device + ":" + s.SampleID
-}
+func (s *Node) Consume(ctx context.Context) bool {
+	names := make([]string, 0)
+	for _, s := range s.Streams {
+		names = append(names, s.Name, "$")
+	}
 
-func (s *Stream) Consume(ctx context.Context) bool {
 	if !s.keepAlive {
 		s.consumeCh = make(chan map[string]interface{})
 		s.keepAlive = true
 		args := &redis.XReadArgs{
 			Block:   time.Duration(1000) * time.Millisecond,
-			Streams: []string{s.ID(), "$"},
+			Streams: names,
 		}
 		go func() {
 			defer func() {
@@ -137,7 +220,7 @@ func (s *Stream) Consume(ctx context.Context) bool {
 	return s.keepAlive
 }
 
-func (s *Stream) Recv(ctx context.Context) map[string]interface{} {
+func (s *Node) Recv(ctx context.Context) map[string]interface{} {
 	for {
 		select {
 		case <-ctx.Done():
@@ -148,27 +231,45 @@ func (s *Stream) Recv(ctx context.Context) map[string]interface{} {
 	}
 }
 
-func (s *Stream) Register(srv *http.ServeMux) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *Stream) Endpoints(base string) []*loppu.Endpoint {
-	//TODO implement me
-	panic("implement me")
-}
-
-func NewRedisStream(device, id string, interval time.Duration,
-	requests []string) loppu.Node {
+func NewStream(name, id string, delay time.Duration, reqs []*Request) *Stream {
 	return &Stream{
-		Device:    device,
-		SampleID:  id,
-		Interval:  interval,
-		keepAlive: false,
-		Requests:  requests,
+		Name:     name,
+		ID:       id,
+		Requests: reqs,
+		Interval: delay,
 	}
+}
+
+func (s *Node) AddStream(stream *Stream) {
+	s.Streams = append(s.Streams, stream)
+}
+
+func (s *Node) Register(srv *http.ServeMux) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *Node) Endpoints(base string) []*loppu.Endpoint {
+	//TODO implement me
+	panic("implement me")
 }
 
 type Handler interface {
 	Handle(ctx context.Context, data map[string]interface{})
+}
+
+func NewRedisNode() loppu.Node {
+	return &Node{
+		MetaData: &MetaData{
+			Node:   "stream",
+			Author: loppu.Username(),
+			Date:   time.Now().String(),
+			Host:   "127.0.0.1",
+			Port:   50001,
+		},
+		RedisAddr: "localhost:6379",
+		Password:  "",
+		DB:        0,
+		Streams:   nil,
+	}
 }
