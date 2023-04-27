@@ -223,15 +223,8 @@ func (s *Node) Consume(ctx context.Context) bool {
 	return s.keepAlive
 }
 
-func (s *Node) Recv(ctx context.Context) map[string]interface{} {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case item := <-s.consumeCh:
-			return item
-		}
-	}
+func (s *Node) Recv() <-chan map[string]interface{} {
+	return s.consumeCh
 }
 
 func NewStream(name, id string, delay time.Duration, reqs []*Request) *Stream {
@@ -248,8 +241,18 @@ func (s *Node) AddStream(stream *Stream) {
 }
 
 func (s *Node) Register(srv *http.ServeMux) {
-	//TODO implement me
-	panic("implement me")
+	srv.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+
+	})
+	srv.HandleFunc("/stream", func(w http.ResponseWriter, r *http.Request) {
+
+	})
+	srv.HandleFunc("/start", func(w http.ResponseWriter, r *http.Request) {
+
+	})
+	srv.HandleFunc("/stop", func(w http.ResponseWriter, r *http.Request) {
+
+	})
 }
 
 func (s *Node) Endpoints(base string) []*loppu.Endpoint {

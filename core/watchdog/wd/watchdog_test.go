@@ -1,4 +1,4 @@
-package watchdog
+package wd
 
 import (
 	"context"
