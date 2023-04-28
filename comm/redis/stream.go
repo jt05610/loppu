@@ -16,6 +16,7 @@ type Request struct {
 }
 
 type Stream struct {
+	client   comm.Client
 	Name     string        `yaml:"name"`
 	SampleID string        `yaml:"sampleID"`
 	Requests []*Request    `yaml:"requests"`
@@ -31,11 +32,11 @@ func (s *Stream) doRequests(ctx context.Context, c comm.Client) (*redis.XAddArgs
 		case <-ctx.Done():
 			return nil, errors.New("timeout")
 		default:
-			resp, err := c.Read(r.Uri)
+			resp, err := c.Read(ctx)
 			if err != nil {
 				return nil, err
 			}
-			data[r.Name] = resp.Body()
+			data[r.Name] = resp
 		}
 	}
 
@@ -49,19 +50,28 @@ type Streamer struct {
 	reqClient comm.Client
 	client    *redis.Client
 	Streams   []*Stream `yaml:"streams"`
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
-func (s *Streamer) Role() comm.Role {
-	return comm.StreamerRole
+func (s *Streamer) Open(ctx context.Context) error {
+	s.client = redis.NewClient(DefaultRedis)
+	s.ctx, s.cancel = context.WithCancel(ctx)
+	return nil
 }
 
-func (s *Stream) Stream(ctx context.Context, cli comm.Client, out chan *redis.XAddArgs) error {
+func (s *Streamer) Close() {
+	s.cancel()
+	_ = s.client.Close()
+}
+
+func (s *Stream) Stream(ctx context.Context, out chan *redis.XAddArgs) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(s.Interval):
-			args, err := s.doRequests(ctx, cli)
+			args, err := s.doRequests(ctx, s.client)
 			if err != nil {
 				return err
 			}
@@ -93,14 +103,13 @@ func (s *Streamer) Stream(ctx context.Context) {
 		wg.Add(1)
 		go func(stream *Stream) {
 			defer wg.Done()
-			err := stream.Stream(ctx, s.reqClient, ch)
+			err := stream.Stream(ctx, ch)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}(stream)
 	}
 	wg.Wait()
-
 }
 
 var DefaultRedis = &redis.Options{
@@ -117,6 +126,6 @@ func (s *Streamer) Add(new *Stream) error {
 	return nil
 }
 
-func NewStreamer(c comm.Client) comm.Streamer {
-	return &Streamer{reqClient: c, client: redis.NewClient(DefaultRedis)}
+func NewStreamer() comm.Streamer {
+	return &Streamer{}
 }

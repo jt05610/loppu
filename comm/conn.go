@@ -39,8 +39,9 @@ type Pub interface {
 
 type Consumer interface {
 	Conn
-	Consume(ctx context.Context) bool
-	Recv() <-chan map[string]interface{}
+	Done() <-chan struct{}
+	Consume()
+	Recv() <-chan Packet
 }
 
 type Streamer interface {

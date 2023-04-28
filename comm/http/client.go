@@ -1,36 +1,38 @@
 package http
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jt05610/loppu/comm"
-	"io"
 	"net/http"
 )
 
 // Client represents the http client.
 type Client struct {
 	client *http.Client
-	ps     comm.PacketService
+	url    string
 }
 
-func (c *Client) Role() comm.Role {
-	return comm.ClientRole
+func (c *Client) Open(ctx context.Context) error {
+	c.client = &http.Client{}
+	return nil
 }
 
-// Read from the given address.
-func (c *Client) Read(a string) (comm.Packet, error) {
-	resp, err := c.client.Get(a)
+func (c *Client) Read(ctx context.Context) (comm.Packet, error) {
+	resp, err := c.client.Get(c.url)
 	if err != nil {
 		return nil, err
 	}
-	return c.ps.Load(resp.Body)
+	var res comm.Packet
+	d := json.NewDecoder(resp.Body)
+	return res, d.Decode(&res)
 }
 
-// Write the given comm.Packet to the given comm.Addr. Makes sure status code is not an error, otherwise ignores the response.
-func (c *Client) Write(a string, p comm.Packet) error {
+func (c *Client) Write(ctx context.Context, p comm.Packet) error {
 	var err error
-	resp, err := c.client.Post(a, "application/json", p.JSON())
+	resp, err := c.client.Post(c.url, "application/json", p.JSON())
 	if err == nil && resp.StatusCode > 400 {
 		err = errors.New(fmt.Sprintf("write failed with status code %v", resp.StatusCode))
 	}
@@ -38,27 +40,19 @@ func (c *Client) Write(a string, p comm.Packet) error {
 }
 
 // RoundTrip sends the given comm.Packet to the given comm.Address and returns resulting comm.Packet
-func (c *Client) RoundTrip(a comm.Addr, p comm.Packet) (comm.Packet, error) {
-	var err error
-	resp, err := c.client.Post(a.String(), "application/json", p.JSON())
-	if err == nil && resp.StatusCode > 400 {
-		err = errors.New(fmt.Sprintf("write failed with status code %v", resp.StatusCode))
-	}
-	r, err := c.ps.Load(resp.Body)
+func (c *Client) RoundTrip(ctx context.Context, p comm.Packet) (comm.Packet,
+	error) {
+	err := c.Write(ctx, p)
 	if err != nil {
-		if err == io.EOF {
-			err = nil
-		} else {
-			panic(err)
-		}
+		return nil, err
 	}
-	return r, err
+	return c.Read(ctx)
 }
 
 func (c *Client) Close() {
 	c.client.CloseIdleConnections()
 }
 
-func NewClient() comm.Client {
-	return &Client{client: http.DefaultClient, ps: NewPacketService()}
+func NewClient(url string) comm.Client {
+	return &Client{client: http.DefaultClient, url: url}
 }

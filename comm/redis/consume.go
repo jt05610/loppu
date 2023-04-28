@@ -8,25 +8,43 @@ import (
 )
 
 type Consumer struct {
-	client    *redis.Client
-	Streams   []*Stream
-	keepAlive bool
-	ch        chan map[string]interface{}
+	client  *redis.Client
+	ctx     context.Context
+	cancel  context.CancelFunc
+	Streams []*Stream
+	ch      chan comm.Packet
+	doneCh  chan struct{}
 }
 
-func (c *Consumer) Role() comm.Role {
-	return comm.ConsumerRole
+func (c *Consumer) Open(ctx context.Context) error {
+	c.client = redis.NewClient(DefaultRedis)
+	c.ctx, c.cancel = context.WithCancel(ctx)
+	return nil
 }
 
-func (c *Consumer) Consume(ctx context.Context) bool {
+func (c *Consumer) Close() {
+	c.cancel()
+	_ = c.client.Close()
+}
+
+func (c *Consumer) Done() <-chan struct{} {
+	return c.doneCh
+}
+
+func (c *Consumer) Consume() {
 	names := make([]string, 0)
 	for _, s := range c.Streams {
 		names = append(names, s.Name, "$")
 	}
+	c.doneCh = make(chan struct{})
+	defer close(c.doneCh)
+	go func() {
 
-	if !c.keepAlive {
-		c.ch = make(chan map[string]interface{})
-		c.keepAlive = true
+		go func() {
+			<-c.ctx.Done()
+			close(c.doneCh)
+		}()
+		c.ch = make(chan comm.Packet)
 		args := &redis.XReadArgs{
 			Block:   time.Duration(1000) * time.Millisecond,
 			Streams: names,
@@ -34,32 +52,27 @@ func (c *Consumer) Consume(ctx context.Context) bool {
 		go func() {
 			defer func() {
 				close(c.ch)
-				c.keepAlive = false
+				close(c.doneCh)
 			}()
 			for {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					res, err := c.client.XRead(ctx, args).Result()
-					if err != nil {
-						if err == context.Canceled || err == redis.ErrClosed {
-							return
-						}
-						panic(err)
+				res, err := c.client.XRead(c.ctx, args).Result()
+				if err != nil {
+					if err == context.Canceled || err == redis.ErrClosed {
+						return
 					}
-					c.ch <- res[0].Messages[0].Values
+					panic(err)
 				}
+				c.ch <- res[0].Messages[0].Values
 			}
 		}()
-	}
-	return c.keepAlive
+
+	}()
 }
 
-func (c *Consumer) Recv() <-chan map[string]interface{} {
+func (c *Consumer) Recv() <-chan comm.Packet {
 	return c.ch
 }
 
 func NewConsumer() comm.Consumer {
-	return &Consumer{client: redis.NewClient(DefaultRedis)}
+	return &Consumer{}
 }

@@ -65,6 +65,7 @@ func (c *Client) Write(ctx context.Context, p comm.Packet) error {
 	return err
 }
 
+// RoundTrip sends the given comm.Packet to the given comm.Address and returns resulting comm.Packet
 func (c *Client) RoundTrip(ctx context.Context, p comm.Packet) (comm.Packet,
 	error) {
 	err := c.Write(ctx, p)
