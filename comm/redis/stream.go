@@ -23,6 +23,21 @@ type Stream struct {
 	Interval time.Duration `yaml:"interval"`
 }
 
+func (s *Stream) Open(ctx context.Context, c comm.Client) {
+	s.client = c
+	err := s.client.Open(ctx)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (s *Stream) Close() {
+	if s.client != nil {
+		s.client.Close()
+	}
+	s.client = nil
+}
+
 func (s *Stream) doRequests(ctx context.Context, c comm.Client) (*redis.XAddArgs, error) {
 	data := map[string]interface{}{
 		"id": s.SampleID,
