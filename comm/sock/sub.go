@@ -1,19 +1,16 @@
 package sock
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/jt05610/loppu/comm"
-	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
 )
 
-type Handler func(w io.Writer, r []byte) error
-
-type Server struct {
+type Sub struct {
 	socket string
 	h      Handler
 	done   chan struct{}
@@ -21,19 +18,17 @@ type Server struct {
 	dir    string
 }
 
-func (s *Server) Close() {
-	if err := os.RemoveAll(s.dir); err != nil {
-		log.Fatal(err)
-	}
+func (s *Sub) Close() {
+	_ = os.Remove(s.socket)
 }
 
-func (s *Server) Run() error {
+func (s *Sub) Run() error {
 	defer s.Close()
 	<-s.done
 	return s.err
 }
 
-func (s *Server) Listen(ctx context.Context) error {
+func (s *Sub) Listen(ctx context.Context) error {
 	err := s.Open(ctx)
 	if err != nil {
 		return err
@@ -41,7 +36,7 @@ func (s *Server) Listen(ctx context.Context) error {
 	return s.Run()
 }
 
-func (s *Server) Open(ctx context.Context) error {
+func (s *Sub) Open(ctx context.Context) error {
 	s.done = make(chan struct{})
 	_, err := s.Serve(ctx)
 	if err != nil {
@@ -53,12 +48,12 @@ func (s *Server) Open(ctx context.Context) error {
 		}
 		return s.err
 	}
-	return os.Chmod(s.socket, os.ModeSocket|0666)
+	return os.Chmod(s.socket, os.ModeSocket|0622)
 }
 
-func (s *Server) Serve(ctx context.Context) (<-chan struct{}, error) {
-	srv, err := net.Listen("unix", s.socket)
-	fmt.Println(srv.Addr().String())
+func (s *Sub) Serve(ctx context.Context) (<-chan struct{}, error) {
+	srv, err := net.ListenPacket("unixgram", s.socket)
+	fmt.Println(srv.LocalAddr().String())
 	done := make(chan struct{})
 	if err != nil {
 		return nil, err
@@ -68,37 +63,29 @@ func (s *Server) Serve(ctx context.Context) (<-chan struct{}, error) {
 			<-ctx.Done()
 			close(done)
 			_ = srv.Close()
+			_ = os.Remove(s.socket)
 		}()
-
+		buf := make([]byte, 1024)
 		for {
-			conn, err := srv.Accept()
+			n, addr, err := srv.ReadFrom(buf)
 			if err != nil {
 				return
 			}
-
-			go func() {
-				defer func() {
-					_ = conn.Close()
-				}()
-				for {
-					buf := make([]byte, 1024)
-					n, err := conn.Read(buf)
-					if err != nil {
-						return
-					}
-					err = s.h(conn, buf[:n])
-					if err != nil {
-						return
-					}
-				}
-			}()
+			var rsp bytes.Buffer
+			err = s.h(&rsp, buf[:n])
+			if err != nil {
+				return
+			}
+			_, err = srv.WriteTo(rsp.Bytes(), addr)
+			if err != nil {
+				return
+			}
 		}
 	}()
-
 	return done, nil
 }
 
-func NewServer(addr string, h Handler) comm.Server {
+func NewSub(addr string, h Handler) comm.Sub {
 	p := filepath.Join("/tmp", fmt.Sprintf("%s_unix", addr))
 	err := os.Mkdir(p, 0777)
 	if err != nil {
@@ -118,6 +105,6 @@ func NewServer(addr string, h Handler) comm.Server {
 	return &Server{
 		h:      h,
 		dir:    p,
-		socket: filepath.Join(p, fmt.Sprintf("%s.sock", addr)),
+		socket: filepath.Join(p, fmt.Sprintf("%s-sub.sock", addr)),
 	}
 }

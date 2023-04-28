@@ -14,14 +14,17 @@ import (
 )
 
 type Client struct {
-	addr string
-	conn net.Conn
-	buf  []byte
-	to   time.Duration
+	socket string
+	conn   net.Conn
+	buf    []byte
+	to     time.Duration
+	ctx    context.Context
 }
 
-func (c *Client) Role() comm.Role {
-	return comm.ClientRole
+func (c *Client) Open(ctx context.Context) (err error) {
+	c.conn, err = net.Dial("unix", c.socket)
+	c.ctx = ctx
+	return err
 }
 
 func (c *Client) Do(ctx context.Context, f func() (comm.Packet,
@@ -75,9 +78,13 @@ func (c *Client) Close() {
 	_ = c.conn.Close()
 }
 
-const DefaultTimeout = time.Duration(1000) * time.Second
+const DefaultTimeout = time.Duration(1000) * time.Millisecond
 
-func NewClient(addr string) comm.Client {
+func NewClient(addr string, to ...time.Duration) comm.Client {
+	t := DefaultTimeout
+	if to != nil {
+		t = to[0]
+	}
 	dd, err := os.ReadDir("/tmp")
 	if err != nil {
 		panic(err)
@@ -91,7 +98,7 @@ func NewClient(addr string) comm.Client {
 	}
 
 	socket := filepath.Join(dir, fmt.Sprintf("%s.sock", addr))
-	c := &Client{addr: socket, buf: make([]byte, 1024), to: DefaultTimeout}
+	c := &Client{socket: socket, buf: make([]byte, 1024), to: t}
 	c.conn, err = net.Dial("unix", socket)
 	if err != nil {
 		panic(err)

@@ -3,15 +3,12 @@ package loppu
 import (
 	"github.com/jt05610/loppu/metadata"
 	"io"
-	"net/http"
 )
 
 // Node is the base interface for everything in a Loppu robot.
 type Node interface {
 	// Meta returns the Node's MetaData.
 	Meta() *metadata.MetaData
-	// Register registers the node with an HTTP request multiplexer.
-	Register(srv *http.ServeMux)
 	// Run runs the Node in a single function.
 	Run() error
 }
