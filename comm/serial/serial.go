@@ -1,4 +1,4 @@
-package modbus
+package serial
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type SerialOpt struct {
+type Opt struct {
 	Port     string          `yaml:"port"`
 	VID      string          `yaml:"VID"`
 	PID      string          `yaml:"PID"`
@@ -20,10 +20,10 @@ type SerialOpt struct {
 type Serial struct {
 	port serial.Port
 	log  *zap.Logger
-	opt  *SerialOpt
+	opt  *Opt
 }
 
-var DefaultSerial = &SerialOpt{
+var DefaultSerial = &Opt{
 	Port:     "",
 	VID:      "1A86",
 	PID:      "7523",
@@ -35,7 +35,7 @@ var DefaultSerial = &SerialOpt{
 
 var NoPort = errors.New("no port given to NewSerial")
 
-func NewSerial(opt *SerialOpt, log *zap.Logger) (*Serial, error) {
+func NewSerial(opt *Opt, log *zap.Logger) (*Serial, error) {
 	s := &Serial{log: log}
 	var err error
 	if opt.Port == "" {
@@ -95,12 +95,12 @@ func (s *Serial) Close() {
 
 func (s *Serial) Read(p []byte) (n int, err error) {
 	n, err = s.port.Read(p)
-	s.log.Info("received", zap.ByteString("pdu", p[:n]))
+	s.log.Info("recv", zap.ByteString("pdu", p[:n]))
 	return n, err
 }
 
 func (s *Serial) Write(p []byte) (n int, err error) {
-	s.log.Info("sending", zap.ByteString("pdu", p))
+	s.log.Info("send", zap.ByteString("pdu", p))
 	n, err = s.port.Write(p)
 	return n, err
 }

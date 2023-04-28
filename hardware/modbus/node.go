@@ -8,6 +8,7 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/jt05610/loppu"
 	"github.com/jt05610/loppu/hardware"
+	"github.com/jt05610/loppu/metadata"
 	"github.com/jt05610/loppu/yaml"
 	"io"
 	"net/http"
@@ -39,7 +40,7 @@ type MetaData struct {
 }
 
 type MBusNode struct {
-	MetaData    *MetaData             `yaml:"meta"`
+	MetaData    *MetaData             `yaml:"metadata"`
 	Tables      map[string][]*Handler `yaml:"tables"`
 	Diag        []*Handler            `yaml:"diag,omitempty"`
 	client      *Client
@@ -79,7 +80,7 @@ func (n *MBusNode) Proto(p ...hardware.Proto) hardware.Proto {
 	return n.client
 }
 
-func (n *MBusNode) Meta() loppu.MetaData {
+func (n *MBusNode) Meta() metadata.MetaData {
 	return n.MetaData
 }
 
@@ -316,7 +317,7 @@ func NewMBusNode(name string, address byte) hardware.Node {
 	return &MBusNode{
 		MetaData: &MetaData{
 			Node:    name,
-			Author:  loppu.Username(),
+			Author:  metadata.Username(),
 			Address: MBAddress(address),
 			Date:    time.Now().String(),
 			Host:    "127.0.0.1",

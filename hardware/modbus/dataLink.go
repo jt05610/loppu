@@ -1,11 +1,12 @@
 package modbus
 
 import (
+	serial2 "github.com/jt05610/loppu/comm/serial"
 	"github.com/jt05610/loppu/hardware"
 )
 
 type DataLink struct {
-	serial *Serial
+	serial *serial2.Serial
 	buf    []byte
 }
 
@@ -26,6 +27,6 @@ func (d *DataLink) Recv(pdu hardware.Packet) (int, error) {
 	return pdu.Write(d.buf[:n])
 }
 
-func NewDataLink(ser *Serial) *DataLink {
+func NewDataLink(ser *serial2.Serial) *DataLink {
 	return &DataLink{serial: ser, buf: make([]byte, 256)}
 }
