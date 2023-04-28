@@ -1,7 +1,6 @@
 package loppu
 
 import (
-	"github.com/jt05610/loppu/comm"
 	"time"
 )
 
@@ -20,7 +19,7 @@ type MetaData struct {
 	// Updated is the IP address the node can be reached at.
 	Updated time.Time `yaml:"updated"`
 	// Addr is the IP address the node can be reached at.
-	Addr comm.Addr `yaml:"addr"`
+	Addr string `yaml:"addr"`
 	// Port is the node's port.
 	Port int `yaml:"port"`
 }
@@ -51,7 +50,7 @@ func NewMetaData(name string, addr string, port int) *MetaData {
 		Version: "0.1.0",
 		Date:    time.Now(),
 		Updated: time.Now(),
-		Addr:    comm.NewAddr(addr),
+		Addr:    addr,
 		Port:    50000 + port,
 	}
 }
