@@ -14,6 +14,10 @@ type Consumer struct {
 	ch        chan map[string]interface{}
 }
 
+func (c *Consumer) Role() comm.Role {
+	return comm.ConsumerRole
+}
+
 func (c *Consumer) Consume(ctx context.Context) bool {
 	names := make([]string, 0)
 	for _, s := range c.Streams {

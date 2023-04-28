@@ -1,15 +1,16 @@
 package comm
 
-import "io"
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+)
 
-type Packet interface {
-	Header(h ...map[string][]string) io.Reader
-	JSON() io.Reader
-	Body() map[string]interface{}
-	Error() error
-}
+type Packet map[string]interface{}
 
-type PacketService interface {
-	Load(r io.Reader) (Packet, error)
-	Flush(w io.Writer, p Packet) error
+func (p *Packet) JSON() io.Reader {
+	var buf bytes.Buffer
+	d := json.NewDecoder(&buf)
+	d.Decode(p)
+	return &buf
 }

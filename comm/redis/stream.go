@@ -51,6 +51,10 @@ type Streamer struct {
 	Streams   []*Stream `yaml:"streams"`
 }
 
+func (s *Streamer) Role() comm.Role {
+	return comm.StreamerRole
+}
+
 func (s *Stream) Stream(ctx context.Context, cli comm.Client, out chan *redis.XAddArgs) error {
 	for {
 		select {

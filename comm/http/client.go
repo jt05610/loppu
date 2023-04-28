@@ -14,6 +14,10 @@ type Client struct {
 	ps     comm.PacketService
 }
 
+func (c *Client) Role() comm.Role {
+	return comm.ClientRole
+}
+
 // Read from the given address.
 func (c *Client) Read(a string) (comm.Packet, error) {
 	resp, err := c.client.Get(a)
