@@ -3,6 +3,7 @@ package modbus
 import (
 	"context"
 	"github.com/jt05610/loppu"
+	"github.com/jt05610/loppu/comm/serial"
 	"github.com/jt05610/loppu/hardware"
 	"go.uber.org/zap"
 	"sync"
@@ -49,7 +50,7 @@ func (c *Client) Close() {
 	c.dl.serial.Close()
 }
 func DefaultClient(logger *zap.Logger) hardware.Proto {
-	ser, err := NewSerial(DefaultSerial, logger)
+	ser, err := serial.NewSerial(serial.DefaultSerial, logger)
 	if err != nil {
 		panic(err)
 	}

@@ -23,8 +23,6 @@ type MetaData struct {
 	Addr comm.Addr `yaml:"addr"`
 	// Port is the node's port.
 	Port int `yaml:"port"`
-	// Role is the primary public role played by the node in the network.
-	Role comm.Role `yaml:"role"`
 }
 
 // Patch creates a patch and updates the metadata.
@@ -46,7 +44,7 @@ func (m *MetaData) Release() {
 }
 
 // NewMetaData makes returns default MetaData for a new Node.
-func NewMetaData(role comm.Role, name string, addr string, port int) *MetaData {
+func NewMetaData(name string, addr string, port int) *MetaData {
 	return &MetaData{
 		Node:    name,
 		Author:  Username(),
@@ -55,6 +53,5 @@ func NewMetaData(role comm.Role, name string, addr string, port int) *MetaData {
 		Updated: time.Now(),
 		Addr:    comm.NewAddr(addr),
 		Port:    50000 + port,
-		Role:    role,
 	}
 }
