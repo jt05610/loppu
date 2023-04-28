@@ -3,16 +3,15 @@ package bot
 import (
 	"errors"
 	"github.com/jt05610/loppu"
-	"github.com/jt05610/loppu/metadata"
 )
 
 type Bot struct {
-	MetaData *metadata.MetaData  `yaml:"metadata"`
+	MetaData *loppu.MetaData     `yaml:"metadata"`
 	Nodes    map[string][]string `yaml:"nodes,omitempty"`
 	nodes    []loppu.Node
 }
 
-func (b *Bot) Meta() *metadata.MetaData {
+func (b *Bot) Meta() *loppu.MetaData {
 	//TODO implement me
 	panic("implement me")
 }
@@ -26,7 +25,7 @@ const DefaultName string = "newBot"
 
 func NewProject(name string, host string) loppu.Node {
 	return &Bot{
-		MetaData: metadata.NewMetaData(name, host, 0),
+		MetaData: loppu.NewMetaData(name, host, 0),
 		Nodes:    make(map[string][]string, 0),
 	}
 }

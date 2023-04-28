@@ -1,4 +1,4 @@
-package metadata
+package loppu
 
 import (
 	"github.com/jt05610/loppu/comm"
