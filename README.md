@@ -7,8 +7,31 @@ everyday lab tasks, and is written to scale as your needs.
 
 ## Why do we need another robotics framework?
 
-The needs of a robot operating in a predictable laboratory environment are
-simply different from the needs of one in traditional robotics settings.
+The current options available to scientists seeking to automate a task are
+
+* buy an instrument that automates the task
+* learn the necessary skills to automate the task
+
+The former option is the one traditionally employed for common techniques
+such as High Pressure Liquid Chromatography, however there simply cannot be
+a robot available for every task one can think of. While there are great
+robotics tools available such as Robot Operating System (ROS), the tools are
+targeted at serious robotics developers and are not worth the time to learn
+for a scientist who just wants to spend less time doing repetitive tasks.
+
+ROS was originally developed for use in research labs by roboticists with
+expertise in computer science and engineering. In contrast, Loppu was developed
+by a PhD student in a Pharmaceutical Sciences department who wanted to create
+robots specific to automate laboratory work. Therefore, Loppu was built to
+be easy to start using with the needs of bench scientists in mind.
+
+Simplicity, accessibility, and user-friendliness are guiding principles in
+the development of Loppu, And the ultimate intention is allowing bench
+scientists to automate their work with minimal effort and without extensive
+technical knowledge. We provide this through pre-built modules for performing
+common tasks such as moving samples or pipetting liquids, modern data 
+handling and analysis tools, and code generation scripts to quickly build 
+your own modules.
 
 ## Features
 
@@ -33,14 +56,14 @@ go get github.com/jt05610/loppu
 
 ## Usage
 
-The following code snippet demonstrates how to use the framework to create a 
+The following code snippet demonstrates how to use the framework to create a
 syringe pump:
 
 ```go
 package main
 
 import (
-  "github.com/jt05610/loppu"
+	"github.com/jt05610/loppu"
 )
 
 func main() {
@@ -49,8 +72,8 @@ func main() {
 
 ## Contributing
 
-Contributions are welcome! Please refer to the [contributing guidelines](CONTRIBUTING.md) for more information.
-
+Contributions are welcome! Please refer to
+the [contributing guidelines](CONTRIBUTING.md) for more information.
 
 ## Roadmap
 
@@ -118,14 +141,15 @@ Generate clients in popular languages to interact with robots
 
 ##### Description
 
-Since Raspberry Pi is also popular and would be very useful for this framework, 
+Since Raspberry Pi is also popular and would be very useful for this framework,
 the framework needs to be implemented on it.
 
 ##### Goals
+
 * Full Hardware and Software implementation on same device
-  * USB port to RS485 for extending
+    * USB port to RS485 for extending
 * Support PiCamera
-  
+
 #### ROS integration
 
 ##### Description
@@ -134,6 +158,7 @@ As ROS is the most popular open-source robotics framework, a ROS node should
 be published to make it easy to integrate existing robots.
 
 ##### Goals
+
 * ROS node
-* Implement one syringe pump with ROS and another with Loppu, then make them 
+* Implement one syringe pump with ROS and another with Loppu, then make them
   work together
